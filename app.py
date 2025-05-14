@@ -61,6 +61,7 @@ def generate_pdf_report(alerts, recommendations):
 
     return pdf.output(dest='S').encode('latin-1')
 
+# Continue only if file uploaded
 if uploaded_file:
     with st.spinner("Processing uploaded data..."):
         usecols = [
@@ -82,7 +83,7 @@ if uploaded_file:
         st.subheader("🔍 Preview of Uploaded Data")
         st.dataframe(df.head(10))
 
-        tab1, tab2, tab3 = st.tabs(["📈 Monitoring Dashboard", "🚨 Alerts & Expert Guidance", "🧾 GPT Summary"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Monitoring Dashboard", "🚨 Alerts & Expert Guidance", "🧾 GPT Summary", "📊 Statistical Analysis", "🔬 ML Detections"])
 
         with tab1:
             st.markdown("### Real-Time Sensor Trends")
@@ -132,6 +133,47 @@ if uploaded_file:
             st.markdown("### 🤖 GPT-Based Summary")
             summary = generate_summary(alerts, recommendations)
             st.text_area("Session Summary", summary, height=300)
+
+        with tab4:
+            st.markdown("### 📊 Statistical Summary of Key Metrics")
+            stats = df.describe().T[['mean', 'std', 'min', 'max']]
+            st.dataframe(stats)
+
+            st.markdown("### 📥 Download Statistical Summary")
+            stat_csv = stats.to_csv().encode('utf-8')
+            st.download_button("Download Statistics CSV", stat_csv, "statistical_summary.csv")
+
+        with tab5:
+            st.markdown("### 🔬 Machine Learning-Based Detections")
+            import joblib
+            try:
+                model = joblib.load("model.pkl")
+                features = ['PLC ROP (ft_per_hr)', 'DAS Vibe Lateral Max (g_force)']
+                df = df.dropna(subset=features)
+                X = df[features]
+                df['ML Screen Efficiency Flag'] = model.predict(X)
+            except Exception as e:
+                st.warning(f"⚠️ Could not load or run ML model: {e}")
+                df['ML Screen Efficiency Flag'] = 0
+
+            st.write("Flag = 1 indicates predicted screen overload risk.")
+            st.dataframe(df[['PLC ROP (ft_per_hr)', 'DAS Vibe Lateral Max (g_force)', 'ML Screen Efficiency Flag']].tail(50))
+
+            st.markdown("### 🧭 ML Flag Timeline")
+            fig = px.scatter(
+                df.reset_index(),
+                x='Timestamp',
+                y='ML Screen Efficiency Flag',
+                color='ML Screen Efficiency Flag',
+                title='Screen Overload Risk Flag Over Time',
+                labels={"ML Screen Efficiency Flag": "Flag (1 = Risk)"},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("### 📥 Download ML Flags")
+            ml_export = df[['PLC ROP (ft_per_hr)', 'DAS Vibe Lateral Max (g_force)', 'ML Screen Efficiency Flag']]
+            st.download_button("Download ML Flags CSV", ml_export.to_csv().encode('utf-8'), "ml_screen_efficiency_flags.csv")
 
         st.sidebar.markdown("---")
         st.sidebar.header("📤 Export")
